@@ -145,7 +145,10 @@ def main():
             raise FtpSslNotSupported("Python is too old for FTP SSL. Try using Python 2.7 or later.")
     else:
         ftp = ftplib.FTP(options.ftp.hostname, options.ftp.username, options.ftp.password)
-    ftp.cwd(base)
+    try:
+        ftp.cwd(base)
+    except ftplib.error_perm:
+        raise ValueError("FTP base directory '%s' does not exist on this server (note: the server session starts at '%s')" % (base, ftp.pwd()))
 
     # Check revision
     hash = options.revision
