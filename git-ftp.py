@@ -145,6 +145,11 @@ def main():
             raise FtpSslNotSupported("Python is too old for FTP SSL. Try using Python 2.7 or later.")
     else:
         ftp = ftplib.FTP(options.ftp.hostname, options.ftp.username, options.ftp.password)
+
+    # Make the base directory an absolute path - it is required for the subsequent steps
+    if base[0] != '/':
+        base = os.path.join(ftp.pwd(), base)
+
     try:
         ftp.cwd(base)
     except ftplib.error_perm:
