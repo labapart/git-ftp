@@ -56,6 +56,52 @@ if LooseVersion(git_version) < '0.3.0':
 
 from git import Blob, Repo, Git, Submodule
 
+class FTPDryRun(object):
+    def mkd(self, pathname):
+        print "[FTP] Create directory %s" % pathname
+
+    def storbinary(self, command, file, blocksize = None, callback = None, rest = None):
+        print "[FTP] Create file %s" % command.split()[1]
+
+    def storlines(self, command, file, callback = None):
+        print "[FTP] Create file %s" % command.split()[1]
+
+    def delete(self, filename):
+        print "[FTP] Delete file %s" % filename
+
+    def rmd(self, dirname):
+        print "[FTP] Delete directory %s" % dirname
+
+    def rename(self, fromname, toname):
+        print "[FTP] Rename %s to %s" % (fromname, toname)
+
+class FTP(FTPDryRun, ftplib.FTP):
+    def __init__(self, host = None, user = None, passwd = None, acct = None, timeout = None):
+        ftplib.FTP.__init__(self, host, user, passwd, acct, timeout)
+
+    def voidcmd(self, command):
+        if command.startswith("SITE CHMOD "):
+            print "[FTP] Change permission '%s'" % command
+        else:
+            super(FTP, self).voidcmd(command)
+
+    def cwd(self, pathname):
+        super(FTP, self).cwd(pathname)
+        print "[FTP] Change directory '%s'" % pathname
+
+class FTP_TLS(ftplib.FTP_TLS, FTPDryRun):
+    def __init__(self, host = None, user = None, passwd = None, acct = None, keyfile = None, certfile = None, context = None, timeout = None):
+        ftplib.FTP_TLS.__init__(self, host, user, passwd, acct, keyfile, certfile, context, timeout)
+
+    def voidcmd(self, command):
+        if command.startswith("SITE CHMOD "):
+            print "[FTP] Change permission '%s'" % command
+        else:
+            super(FTP_TLS, self).voidcmd(command)
+
+    def cwd(self, pathname):
+        super(FTP_TLS, self).cwd(pathname)
+        print "[FTP] Change directory '%s'" % pathname
 
 class BranchNotFound(Exception):
     pass
@@ -138,13 +184,19 @@ def main():
     tree = commit.tree
     if options.ftp.ssl:
         if hasattr(ftplib, 'FTP_TLS'):  # SSL new in 2.7+
-            ftp = ftplib.FTP_TLS(options.ftp.hostname, options.ftp.username, options.ftp.password)
+            if options.dry_run:
+                ftp = FTP_TLS(options.ftp.hostname, options.ftp.username, options.ftp.password)
+            else:
+                ftp = ftplib.FTP_TLS(options.ftp.hostname, options.ftp.username, options.ftp.password)
             ftp.prot_p()
             logging.info("Using SSL")
         else:
             raise FtpSslNotSupported("Python is too old for FTP SSL. Try using Python 2.7 or later.")
     else:
-        ftp = ftplib.FTP(options.ftp.hostname, options.ftp.username, options.ftp.password)
+        if options.dry_run:
+            ftp = FTP(options.ftp.hostname, options.ftp.username, options.ftp.password)
+        else:
+            ftp = ftplib.FTP(options.ftp.hostname, options.ftp.username, options.ftp.password)
     ftp.cwd(base)
 
     # Check revision
@@ -211,6 +263,8 @@ def parse_args():
             help="use this commit instead of HEAD")
     parser.add_option('-s', '--section', dest="section", default=None,
             help="use this section from ftpdata instead of branch name")
+    parser.add_option('-d', '--dry-run', dest="dry_run", action="store_true", default=False,
+            help="use this option to simulate what the script would do")
     options, args = parser.parse_args()
     configure_logging(options)
     if len(args) > 1:
